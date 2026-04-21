@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UNEB Exam Generator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f5f1; color: #1a1a1a; min-height: 100vh; }
+    .container { max-width: 820px; margin: 0 auto; padding: 2.5rem 1.5rem; }
+    h1 { font-size: 1.5rem; font-weight: 600; margin-bottom: .25rem; }
+    .subtitle { color: #666; font-size: .9rem; margin-bottom: 2rem; }
+
+    .card { background: #fff; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; border: 0.5px solid #e2e2dc; }
+    .card-title { font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: #999; margin-bottom: 1rem; }
+
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .form-group { display: flex; flex-direction: column; gap: .4rem; }
+    .form-group.full { grid-column: 1 / -1; }
+    label { font-size: .82rem; font-weight: 500; color: #555; }
+    input, select { border: 1px solid #ddd; border-radius: 8px; padding: .6rem .85rem; font-size: .9rem; font-family: inherit; color: #1a1a1a; background: #fafaf7; }
+    input:focus, select:focus { outline: none; border-color: #999; background: #fff; }
+
+    .btn { display: inline-flex; align-items: center; gap: .5rem; padding: .7rem 2rem; background: #1a1a1a; color: #fff; border: none; border-radius: 8px; font-size: .92rem; font-weight: 500; cursor: pointer; transition: opacity .2s; margin-top: .5rem; }
+    .btn:hover { opacity: .82; }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+
+    .spinner { display: none; text-align: center; padding: 2.5rem 1rem; color: #666; font-size: .9rem; }
+    .spinner.active { display: block; }
+    .spinner-sub { color: #aaa; font-size: .8rem; margin-top: .4rem; }
+    .dots span { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #ccc; margin: .75rem 3px 0; animation: pulse 1.2s ease-in-out infinite; }
+    .dots span:nth-child(2) { animation-delay: .2s; }
+    .dots span:nth-child(3) { animation-delay: .4s; }
+    @keyframes pulse { 0%,80%,100%{opacity:.3} 40%{opacity:1} }
+
+    .result { display: none; margin-top: 1.5rem; }
+    .result.active { display: block; }
+    .result-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: .75rem; }
+    .result-meta { font-size: .8rem; color: #aaa; }
+    .copy-btn { background: none; border: 1px solid #ddd; border-radius: 6px; padding: 4px 12px; font-size: .8rem; color: #666; cursor: pointer; transition: border-color .15s; }
+    .copy-btn:hover { border-color: #999; color: #1a1a1a; }
+    .exam-output { background: #fafaf7; border: 0.5px solid #e2e2dc; border-radius: 8px; padding: 1.5rem; font-family: 'Courier New', monospace; font-size: .85rem; line-height: 1.75; white-space: pre-wrap; word-break: break-word; max-height: 70vh; overflow-y: auto; }
+
+    .agent-log { margin-top: 1rem; }
+    .log-title { font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: #aaa; margin-bottom: .5rem; }
+    .log-steps { display: flex; gap: .5rem; flex-wrap: wrap; }
+    .log-step { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: .76rem; }
+    .step-done { background: #d5f0e1; color: #166534; }
+    .step-active { background: #fef3cd; color: #7a4f00; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>UNEB Exam Generator</h1>
+  <p class="subtitle">A three-agent AI crew — Researcher, Question Writer, and Reviewer — collaborates to produce a ready-to-use exam section.</p>
+
+  <div class="card">
+    <div class="card-title">Exam parameters</div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="subject">Subject</label>
+        <input type="text" id="subject" placeholder="e.g. Biology, Mathematics, History" />
+      </div>
+      <div class="form-group">
+        <label for="level">Exam level</label>
+        <select id="level">
+          <option value="UCE (O-Level)">UCE — O-Level (S1–S4)</option>
+          <option value="UACE (A-Level)">UACE — A-Level (S5–S6)</option>
+        </select>
+      </div>
+      <div class="form-group full">
+        <label for="topic">Topic</label>
+        <input type="text" id="topic" placeholder="e.g. Cell Division and Mitosis, Quadratic Equations, The Colonial Period" />
+      </div>
+      <div class="form-group">
+        <label for="num">Number of questions</label>
+        <input type="number" id="num" value="5" min="3" max="15" />
+      </div>
+    </div>
+    <button class="btn" id="gen-btn" onclick="generate()">Generate exam section</button>
+  </div>
+
+  <div class="spinner" id="spinner">
+    <div>Three agents are collaborating on your exam section…</div>
+    <div class="spinner-sub">Researcher → Question Writer → Reviewer &nbsp;·&nbsp; allow 60–120 seconds</div>
+    <div class="dots"><span></span><span></span><span></span></div>
+    <div class="agent-log" id="agent-log" style="margin-top:1.5rem">
+      <div class="log-title">Agent progress</div>
+      <div class="log-steps" id="log-steps">
+        <span class="log-step step-active" id="step-1">Researcher</span>
+        <span class="log-step" id="step-2" style="background:#f0f0ea;color:#aaa">Question Writer</span>
+        <span class="log-step" id="step-3" style="background:#f0f0ea;color:#aaa">Reviewer</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="result" id="result">
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:1rem 1.5rem .75rem;border-bottom:0.5px solid #efefea">
+        <div class="result-header">
+          <div class="result-meta" id="result-meta"></div>
+          <button class="copy-btn" onclick="copyResult()">Copy</button>
+        </div>
+      </div>
+      <div style="padding:1.5rem">
+        <div class="exam-output" id="exam-output"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Simulate agent progress steps while waiting
+  let stepTimer = null;
+
+  function startStepAnimation() {
+    let current = 1;
+    const steps = ['step-1', 'step-2', 'step-3'];
+    const labels = ['Researcher', 'Question Writer', 'Reviewer'];
+
+    steps.forEach(id => {
+      const el = document.getElementById(id);
+      el.className = 'log-step';
+      el.style.background = '#f0f0ea';
+      el.style.color = '#aaa';
+    });
+
+    document.getElementById('step-1').className = 'log-step step-active';
+    document.getElementById('step-1').style.background = '';
+    document.getElementById('step-1').style.color = '';
+
+    stepTimer = setInterval(() => {
+      if (current < 3) {
+        const prev = document.getElementById(steps[current - 1]);
+        prev.className = 'log-step step-done';
+        prev.style.background = '';
+        prev.style.color = '';
+        current++;
+        const next = document.getElementById(steps[current - 1]);
+        next.className = 'log-step step-active';
+        next.style.background = '';
+        next.style.color = '';
+      }
+    }, 35000); // advance roughly every 35s
+  }
+
+  function stopStepAnimation() {
+    clearInterval(stepTimer);
+    ['step-1','step-2','step-3'].forEach(id => {
+      document.getElementById(id).className = 'log-step step-done';
+      document.getElementById(id).style.background = '';
+      document.getElementById(id).style.color = '';
+    });
+  }
+
+  function copyResult() {
+    navigator.clipboard.writeText(document.getElementById('exam-output').textContent);
+    document.querySelector('.copy-btn').textContent = 'Copied!';
+    setTimeout(() => document.querySelector('.copy-btn').textContent = 'Copy', 2000);
+  }
+
+  async function generate() {
+    const subject = document.getElementById('subject').value.trim();
+    const topic   = document.getElementById('topic').value.trim();
+    const level   = document.getElementById('level').value;
+    const num     = document.getElementById('num').value;
+
+    if (!subject || !topic) { alert('Please enter a subject and topic.'); return; }
+
+    document.getElementById('spinner').classList.add('active');
+    document.getElementById('result').classList.remove('active');
+    document.getElementById('gen-btn').disabled = true;
+    startStepAnimation();
+
+    const form = new FormData();
+    form.append('subject', subject);
+    form.append('topic', topic);
+    form.append('level', level);
+    form.append('num_questions', num);
+
+    try {
+      const res  = await fetch('/generate', { method: 'POST', body: form });
+      const data = await res.json();
+      if (data.error) { alert('Error: ' + data.error); return; }
+
+      document.getElementById('exam-output').textContent = data.result;
+      document.getElementById('result-meta').textContent =
+        `${subject} · ${topic} · ${level} · ${num} questions`;
+      document.getElementById('result').classList.add('active');
+      document.getElementById('result').scrollIntoView({ behavior: 'smooth' });
+    } catch (e) {
+      alert('Request failed: ' + e.message);
+    } finally {
+      document.getElementById('spinner').classList.remove('active');
+      document.getElementById('gen-btn').disabled = false;
+      stopStepAnimation();
+    }
+  }
+</script>
+</body>
+</html>
